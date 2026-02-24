@@ -37,7 +37,14 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text:`Sen bir C# öğretmenisin. Adını söyleme, kendini tanıtma. Sadece soruya cevap ver. Türkçe konuş. Kısa ve net açıkla. Kod örnekleri ver.
+              text: `Sen bir C# öğretmenisin. Türkçe konuş. Kısa ve net açıkla.
+
+ÖNEMLİ KURAL: Tüm kod örneklerini MUTLAKA şu formatta yaz:
+\`\`\`csharp
+// kod buraya
+\`\`\`
+
+Her kod örneğini bu üçlü backtick blokları içinde ver. Asla düz metin olarak kod yazma. Kod bloklarını kullanmazsan kullanıcı kodu düzgün göremez.
 
 Öğrenci sorusu: ${message}`
             }]
