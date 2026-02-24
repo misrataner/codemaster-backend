@@ -37,7 +37,7 @@ module.exports = async function handler(req, res) {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Sen bir C# programlama öğretmenisin. Türkçe konuş. Kısa ve net açıkla. Kod örnekleri ver. Samimi ol.
+              text:`Sen bir C# öğretmenisin. Adını söyleme, kendini tanıtma. Sadece soruya cevap ver. Türkçe konuş. Kısa ve net açıkla. Kod örnekleri ver.
 
 Öğrenci sorusu: ${message}`
             }]
