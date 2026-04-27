@@ -1,4 +1,4 @@
- module.exports = async function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -22,30 +22,20 @@
       return res.status(500).json({ error: 'Gemini API key tanımlı değil.' });
     }
 
-    const cleanMessage = message.trim().slice(0, 1200);
+    const cleanMessage = message.trim().slice(0, 1500);
 
     const prompt =
-      'Sen lise 10. sınıf öğrencilerine C# öğreten net ve yardımcı bir öğretmensin.\n' +
-      'Türkçe konuş. Gereksiz selamlama yapma.\n' +
-      'Öğrenci kod isterse doğrudan tam çalışan C# kodu ver.\n' +
-      'ÖNEMLİ: Markdown code block kullanma. Üç ters tırnak kullanma. ``` kullanma.\n' +
-      'Kodları sadece şu formatta ver:\n\n' +
-      '[KOD]\n' +
-      'using System;\n\n' +
-      'class Program\n' +
-      '{\n' +
-      '    static void Main()\n' +
-      '    {\n' +
-      '        Console.WriteLine("Merhaba");\n' +
-      '    }\n' +
-      '}\n' +
-      '[/KOD]\n\n' +
-      'Koddan sonra en fazla 3 kısa maddeyle açıkla.\n' +
-      'Hesap makinesi istenirse toplama, çıkarma, çarpma, bölme içeren tam console uygulaması yaz.\n\n' +
+      'Sen lise 10. sınıf öğrencilerine C# öğreten net bir öğretmensin. ' +
+      'Türkçe konuş. ' +
+      'Öğrenci kod isterse açıklama yapma, selamlama yapma, sadece tam çalışan C# kodu ver. ' +
+      'Hesap makinesi istenirse çok kısa ama tam çalışan console kodu ver. ' +
+      'Kodda menü kullanma. Sadece iki sayı alıp toplama, çıkarma, çarpma ve bölme sonuçlarını ekrana yazdır. ' +
+      'Kodun başına sadece [KOD] yaz. Kodun sonuna sadece [/KOD] yaz. ' +
+      'Kod eksik kalmasın. Kod dışında açıklama yazma. ' +
       'Öğrenci sorusu: ' + cleanMessage;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
 
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY,
@@ -61,8 +51,8 @@
             }
           ],
           generationConfig: {
-            maxOutputTokens: 1100,
-            temperature: 0.2
+            maxOutputTokens: 2000,
+            temperature: 0.1
           }
         })
       }
@@ -74,27 +64,25 @@
 
     if (!response.ok) {
       console.error('Gemini error:', data);
+
+      if (response.status === 429) {
+        return res.status(200).json({
+          response: 'Şu anda çok fazla istek var. Birkaç saniye sonra tekrar dene.'
+        });
+      }
+
       return res.status(200).json({
-        response: 'Yapay zeka şu an cevap veremedi. Birkaç saniye sonra tekrar dene.'
+        response: 'Yapay zeka şu an cevap veremedi. Sorunu biraz daha kısa yazar mısın?'
       });
     }
 
-    let aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiResponse) {
       return res.status(200).json({
-        response: 'Şu an net bir cevap oluşturamadım. Sorunu daha kısa şekilde tekrar yazar mısın?'
+        response: 'Şu an net bir cevap oluşturamadım. Sorunu tekrar yazar mısın?'
       });
     }
-
-    aiResponse = aiResponse
-      .replace(/```csharp/g, '[KOD]')
-      .replace(/```cs/g, '[KOD]')
-      .replace(/```C#/g, '[KOD]')
-      .replace(/```/g, '[/KOD]')
-      .replace(/\[KOD\]\s*/g, '[KOD]\n')
-      .replace(/\s*\[\/KOD\]/g, '\n[/KOD]')
-      .trim();
 
     return res.status(200).json({ response: aiResponse });
 
