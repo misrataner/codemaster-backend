@@ -1,4 +1,3 @@
-// /api/chat.js - Vercel Serverless Function - Gemini API Backend (CommonJS)
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -10,18 +9,12 @@ module.exports = async function handler(req, res) {
     if (!message) return res.status(400).json({ error: 'Message is required' });
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) return res.status(500).json({ error: 'API key not configured' });
-    const prompt = `Sen bir C# öğretmenisin. Türkce konус. Kisa ve net acikla.
-Tum kod orneklerini su formatta yaz:
-\`\`\`csharp
-// kod buraya
-\`\`\`
-Ogrenci sorusu: ${message}`;
-
+    const prompt = 'Sen bir C# ogretmenisin. Turkce konus. Kisa ve net acikla. Tum kod orneklerini su formatta yaz: ```csharp\n// kod buraya\n``` Ogrenci sorusu: ' + message;
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const response = await fetch(
-          https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=' + GEMINI_API_KEY,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -37,7 +30,7 @@ Ogrenci sorusu: ${message}`;
         } else if (data.error) {
           lastError = data.error.message;
           if (data.error.code === 429) {
-            await new Promise(r => setTimeout(r, attempt * 2000));
+            await new Promise(function(r) { setTimeout(r, attempt * 2000); });
             continue;
           }
           return res.status(500).json({ error: data.error.message });
@@ -46,7 +39,7 @@ Ogrenci sorusu: ${message}`;
         }
       } catch (err) {
         lastError = err.message;
-        await new Promise(r => setTimeout(r, attempt * 1000));
+        await new Promise(function(r) { setTimeout(r, attempt * 1000); });
       }
     }
     return res.status(500).json({ error: 'Cok fazla istek: ' + lastError });
