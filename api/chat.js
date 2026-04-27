@@ -33,8 +33,9 @@ module.exports = async function handler(req, res) {
       'using System;\\n' +
       'class Program { ... }\\n' +
       'Kod düzgün hizalı olsun. ' +
-      'Koddan sonra en fazla 2 kısa açıklama yap. ' +
-      'Öğrenci "tamamını yaz", "kodunu yaz", "program yap", "hesap makinesi yap", "örnek ver" derse tam kod ver. ' +
+      'Koddan sonra şunu yaz: AÇIKLAMA:\\n ' +
+      'Açıklama kısmında en fazla 2 kısa madde kullan. ' +
+      'Öğrenci "tamamını yaz", "kodunu yaz", "program yap", "hesap makinesi yap", "örnek ver", "uygulama yap" derse tam kod ver. ' +
       'Eksik kod verme. ' +
       'Öğrenci sorusu: ' + cleanMessage;
 
@@ -80,8 +81,7 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    const aiResponse =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiResponse) {
       return res.status(200).json({
