@@ -22,15 +22,15 @@ module.exports = async function handler(req, res) {
       return res.status(500).json({ error: 'Gemini API key tanımlı değil.' });
     }
 
-    const cleanMessage = message.trim().slice(0, 1500);
+    const cleanMessage = message.trim().slice(0, 1200);
 
     const prompt =
-      'Sen lise 10. sınıf öğrencilerine C# öğreten yardımcı bir öğretmensin.\n' +
-      'Türkçe konuş.\n' +
-      'Gereksiz selamlama yapma.\n' +
+      'Sen lise 10. sınıf öğrencilerine C# öğreten net ve yardımcı bir öğretmensin.\n' +
+      'Türkçe konuş. Gereksiz selamlama yapma.\n' +
       'Öğrenci kod isterse doğrudan tam çalışan C# kodu ver.\n' +
-      'Kod verirken MUTLAKA şu markdown formatını kullan:\n\n' +
-      '```csharp\n' +
+      'ÖNEMLİ: Markdown code block kullanma. Üç ters tırnak kullanma. ``` kullanma.\n' +
+      'Kodları sadece şu formatta ver:\n\n' +
+      '[KOD]\n' +
       'using System;\n\n' +
       'class Program\n' +
       '{\n' +
@@ -39,14 +39,13 @@ module.exports = async function handler(req, res) {
       '        Console.WriteLine("Merhaba");\n' +
       '    }\n' +
       '}\n' +
-      '```\n\n' +
-      'Kod bloğunun başında ve sonunda mutlaka üç ters tırnak kullan.\n' +
+      '[/KOD]\n\n' +
       'Koddan sonra en fazla 3 kısa maddeyle açıkla.\n' +
       'Hesap makinesi istenirse toplama, çıkarma, çarpma, bölme içeren tam console uygulaması yaz.\n\n' +
       'Öğrenci sorusu: ' + cleanMessage;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 18000);
 
     const response = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY,
@@ -62,7 +61,7 @@ module.exports = async function handler(req, res) {
             }
           ],
           generationConfig: {
-            maxOutputTokens: 1600,
+            maxOutputTokens: 1100,
             temperature: 0.2
           }
         })
@@ -75,7 +74,6 @@ module.exports = async function handler(req, res) {
 
     if (!response.ok) {
       console.error('Gemini error:', data);
-
       return res.status(200).json({
         response: 'Yapay zeka şu an cevap veremedi. Birkaç saniye sonra tekrar dene.'
       });
@@ -90,16 +88,24 @@ module.exports = async function handler(req, res) {
     }
 
     aiResponse = aiResponse
-      .replace(/```csharp\s*/g, '```csharp\n')
-      .replace(/```cs\s*/g, '```csharp\n')
-      .replace(/```C#\s*/g, '```csharp\n')
-      .replace(/```CSharp\s*/g, '```csharp\n')
+      .replace(/```csharp/g, '[KOD]')
+      .replace(/```cs/g, '[KOD]')
+      .replace(/```C#/g, '[KOD]')
+      .replace(/```/g, '[/KOD]')
+      .replace(/\[KOD\]\s*/g, '[KOD]\n')
+      .replace(/\s*\[\/KOD\]/g, '\n[/KOD]')
       .trim();
 
     return res.status(200).json({ response: aiResponse });
 
   } catch (error) {
     console.error('Server error:', error);
+
+    if (error.name === 'AbortError') {
+      return res.status(200).json({
+        response: 'Cevap süresi uzadı. Sorunu daha kısa yazıp tekrar dene.'
+      });
+    }
 
     return res.status(200).json({
       response: 'Geçici bir hata oluştu. Birkaç saniye sonra tekrar dene.'
