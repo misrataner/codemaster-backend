@@ -1,3 +1,35 @@
+const admin = require('firebase-admin');
+
+function initFirebase() {
+  if (admin.apps.length > 0) return;
+
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+  if (serviceAccount.private_key) {
+    serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+  }
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
+async function saveChatLog({ message, response, userId }) {
+  try {
+    initFirebase();
+
+    await admin.firestore().collection('chatLogs').add({
+      message,
+      response,
+      userId: userId || 'unknown',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error('Firestore kayıt hatası:', err.message);
+  }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -10,7 +42,7 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { message } = req.body || {};
+    const { message, userId } = req.body || {};
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'Mesaj boş olamaz.' });
@@ -62,41 +94,46 @@ module.exports = async function handler(req, res) {
 
     const data = await response.json();
 
-    if (!response.ok) {
-      console.error('Gemini error:', data);
+    let aiResponse = '';
 
+    if (!response.ok) {
       if (response.status === 429) {
-        return res.status(200).json({
-          response: 'Şu anda çok fazla istek var. Birkaç saniye sonra tekrar dene.'
-        });
+        aiResponse = 'Şu anda çok fazla istek var. Birkaç saniye sonra tekrar dene.';
+      } else {
+        aiResponse = 'Yapay zeka şu an cevap veremedi. Sorunu biraz daha kısa yazar mısın?';
       }
 
-      return res.status(200).json({
-        response: 'Yapay zeka şu an cevap veremedi. Sorunu biraz daha kısa yazar mısın?'
+      await saveChatLog({
+        message: cleanMessage,
+        response: aiResponse,
+        userId
       });
+
+      return res.status(200).json({ response: aiResponse });
     }
 
-    const aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    aiResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!aiResponse) {
-      return res.status(200).json({
-        response: 'Şu an net bir cevap oluşturamadım. Sorunu tekrar yazar mısın?'
-      });
+      aiResponse = 'Şu an net bir cevap oluşturamadım. Sorunu tekrar yazar mısın?';
     }
+
+    await saveChatLog({
+      message: cleanMessage,
+      response: aiResponse,
+      userId
+    });
 
     return res.status(200).json({ response: aiResponse });
 
   } catch (error) {
     console.error('Server error:', error);
 
-    if (error.name === 'AbortError') {
-      return res.status(200).json({
-        response: 'Cevap süresi uzadı. Sorunu daha kısa yazıp tekrar dene.'
-      });
-    }
+    const errorMessage =
+      error.name === 'AbortError'
+        ? 'Cevap süresi uzadı. Sorunu daha kısa yazıp tekrar dene.'
+        : 'Geçici bir hata oluştu. Birkaç saniye sonra tekrar dene.';
 
-    return res.status(200).json({
-      response: 'Geçici bir hata oluştu. Birkaç saniye sonra tekrar dene.'
-    });
+    return res.status(200).json({ response: errorMessage });
   }
 };
