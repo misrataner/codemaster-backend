@@ -5,23 +5,18 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   try {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
-
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
     if (!GEMINI_API_KEY) return res.status(500).json({ error: 'API key not configured' });
-
-    const prompt = `Sen bir C# öğretmenisin. Türkçe konuş. Kısa ve net açıkla.
-ÖNEMLİ KURAL: Tüm kod örneklerini MUTLAKA şu formatta yaz:
+    const prompt = `Sen bir C# öğretmenisin. Türkce konус. Kisa ve net acikla.
+Tum kod orneklerini su formatta yaz:
 \`\`\`csharp
 // kod buraya
 \`\`\`
-Her kod örneğini bu üçlü backtick blokları içinde ver. Asla düz metin olarak kod yazma.
-Öğrenci sorusu: ${message}`;
+Ogrenci sorusu: ${message}`;
 
-    // 3 kez dene (rate limit için)
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
@@ -35,15 +30,12 @@ Her kod örneğini bu üçlü backtick blokları içinde ver. Asla düz metin ol
             })
           }
         );
-
         const data = await response.json();
-
         if (data.candidates && data.candidates.length > 0 && data.candidates[0].content) {
           const aiResponse = data.candidates[0].content.parts[0].text;
           return res.status(200).json({ response: aiResponse });
         } else if (data.error) {
           lastError = data.error.message;
-          // Rate limit ise bekle ve tekrar dene
           if (data.error.code === 429) {
             await new Promise(r => setTimeout(r, attempt * 2000));
             continue;
@@ -57,8 +49,7 @@ Her kod örneğini bu üçlü backtick blokları içinde ver. Asla düz metin ol
         await new Promise(r => setTimeout(r, attempt * 1000));
       }
     }
-
-    return res.status(500).json({ error: 'Çok fazla istek. Lütfen biraz bekle: ' + lastError });
+    return res.status(500).json({ error: 'Cok fazla istek: ' + lastError });
   } catch (error) {
     return res.status(500).json({ error: 'Internal server error: ' + error.message });
   }
