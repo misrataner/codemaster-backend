@@ -2,5 +2,8 @@
   "name": "codemaster-backend",
   "version": "1.0.0",
   "description": "CodeMaster C# Backend API with Gemini",
-  "main": "api/chat.js"
+  "main": "api/chat.js",
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  }
 }
