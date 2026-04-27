@@ -14,7 +14,7 @@ module.exports = async function handler(req, res) {
     for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         const response = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY,
+          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=' + GEMINI_API_KEY,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
