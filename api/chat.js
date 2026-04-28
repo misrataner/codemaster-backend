@@ -3,6 +3,10 @@ const admin = require('firebase-admin');
 function initFirebase() {
   if (admin.apps.length > 0) return;
 
+  if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT tanımlı değil.');
+  }
+
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 
   if (serviceAccount.private_key) {
@@ -14,14 +18,15 @@ function initFirebase() {
   });
 }
 
-async function saveChatLog({ message, response, userId }) {
+async function saveChatLog({ message, response, userId, status }) {
   try {
     initFirebase();
 
     await admin.firestore().collection('chatLogs').add({
-      message,
-      response,
+      message: message || '',
+      response: response || '',
       userId: userId || 'unknown',
+      status: status || 'success',
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       timestamp: new Date().toISOString()
     });
@@ -41,20 +46,29 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Sadece POST isteği kabul edilir.' });
   }
 
-  try {
-    const { message, userId } = req.body || {};
+  const { message, userId } = req.body || {};
+  const cleanMessage =
+    typeof message === 'string' ? message.trim().slice(0, 1500) : '';
 
-    if (!message || typeof message !== 'string') {
+  try {
+    if (!cleanMessage) {
       return res.status(400).json({ error: 'Mesaj boş olamaz.' });
     }
 
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
     if (!GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'Gemini API key tanımlı değil.' });
-    }
+      const errorText = 'Gemini API key tanımlı değil.';
 
-    const cleanMessage = message.trim().slice(0, 1500);
+      await saveChatLog({
+        message: cleanMessage,
+        response: errorText,
+        userId,
+        status: 'api_key_missing'
+      });
+
+      return res.status(200).json({ response: errorText });
+    }
 
     const prompt =
       'Sen lise 10. sınıf öğrencilerine C# öğreten net bir öğretmensin. ' +
@@ -69,7 +83,7 @@ module.exports = async function handler(req, res) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 20000);
 
-    const response = await fetch(
+    const geminiResponse = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + GEMINI_API_KEY,
       {
         method: 'POST',
@@ -92,12 +106,14 @@ module.exports = async function handler(req, res) {
 
     clearTimeout(timeout);
 
-    const data = await response.json();
+    const data = await geminiResponse.json();
 
     let aiResponse = '';
 
-    if (!response.ok) {
-      if (response.status === 429) {
+    if (!geminiResponse.ok) {
+      console.error('Gemini error:', data);
+
+      if (geminiResponse.status === 429) {
         aiResponse = 'Şu anda çok fazla istek var. Birkaç saniye sonra tekrar dene.';
       } else {
         aiResponse = 'Yapay zeka şu an cevap veremedi. Sorunu biraz daha kısa yazar mısın?';
@@ -106,7 +122,8 @@ module.exports = async function handler(req, res) {
       await saveChatLog({
         message: cleanMessage,
         response: aiResponse,
-        userId
+        userId,
+        status: 'gemini_error'
       });
 
       return res.status(200).json({ response: aiResponse });
@@ -121,7 +138,8 @@ module.exports = async function handler(req, res) {
     await saveChatLog({
       message: cleanMessage,
       response: aiResponse,
-      userId
+      userId,
+      status: 'success'
     });
 
     return res.status(200).json({ response: aiResponse });
@@ -133,6 +151,13 @@ module.exports = async function handler(req, res) {
       error.name === 'AbortError'
         ? 'Cevap süresi uzadı. Sorunu daha kısa yazıp tekrar dene.'
         : 'Geçici bir hata oluştu. Birkaç saniye sonra tekrar dene.';
+
+    await saveChatLog({
+      message: cleanMessage,
+      response: errorMessage,
+      userId,
+      status: error.name === 'AbortError' ? 'timeout' : 'server_error'
+    });
 
     return res.status(200).json({ response: errorMessage });
   }
